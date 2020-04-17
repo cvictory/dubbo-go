@@ -20,6 +20,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"github.com/apache/dubbo-go/common/rpc"
 	"net/url"
 	"strconv"
 	"strings"
@@ -46,6 +47,7 @@ import (
 type ServiceConfig struct {
 	context                     context.Context
 	id                          string
+	servieMetadata              rpc.ServiceMetadata
 	Filter                      string            `yaml:"filter" json:"filter,omitempty" property:"filter"`
 	Protocol                    string            `default:"dubbo"  required:"true"  yaml:"protocol"  json:"protocol,omitempty" property:"protocol"` // multi protocol support, split by ','
 	InterfaceName               string            `required:"true"  yaml:"interface"  json:"interface,omitempty" property:"interface"`
@@ -118,6 +120,7 @@ func (c *ServiceConfig) Export() error {
 		logger.Warnf("The service %v has already exported! ", c.InterfaceName)
 		return nil
 	}
+	c.initServiceMetadata()
 
 	regUrls := loadRegistries(c.Registry, providerConfig.Registries, common.PROVIDER)
 	urlMap := c.getUrlMap()
@@ -144,8 +147,11 @@ func (c *ServiceConfig) Export() error {
 			common.WithMethods(strings.Split(methods, ",")),
 			common.WithToken(c.Token),
 		)
+		c.servieMetadata.AddAttachments(ivkURL.GetParams())
 
 		if len(regUrls) > 0 {
+			_serviceKey := ivkURL.ServiceKey()
+			registryProvider(_serviceKey, &ProviderServiceModel{serviceKey: _serviceKey, ServiceConfig: c})
 			for _, regUrl := range regUrls {
 				regUrl.SubURL = ivkURL
 
@@ -238,4 +244,15 @@ func (c *ServiceConfig) getUrlMap() url.Values {
 	}
 
 	return urlMap
+}
+
+func (c *ServiceConfig) initServiceMetadata() {
+	c.servieMetadata = rpc.ServiceMetadata{
+		Version:              c.Version,
+		Group:                c.Group,
+		ServiceInterfaceName: c.InterfaceName,
+		Attachments:          make(map[string][]string),
+		Attributes:           make(map[string]interface{}),
+	}
+	c.servieMetadata.BuildServiceKey()
 }

@@ -20,6 +20,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"github.com/apache/dubbo-go/common/rpc"
 	"net/url"
 	"strconv"
 	"time"
@@ -44,6 +45,7 @@ type ReferenceConfig struct {
 	context        context.Context
 	pxy            *proxy.Proxy
 	id             string
+	servieMetadata rpc.ServiceMetadata
 	InterfaceName  string            `required:"true"  yaml:"interface"  json:"interface,omitempty" property:"interface"`
 	Check          *bool             `yaml:"check"  json:"check,omitempty" property:"check"`
 	Url            string            `yaml:"url"  json:"url,omitempty" property:"url"`
@@ -93,12 +95,14 @@ func (c *ReferenceConfig) UnmarshalYAML(unmarshal func(interface{}) error) error
 
 // Refer ...
 func (c *ReferenceConfig) Refer(_ interface{}) {
+	c.initServiceMetadata()
 	cfgURL := common.NewURLWithOptions(
 		common.WithPath(c.id),
 		common.WithProtocol(c.Protocol),
 		common.WithParams(c.getUrlMap()),
 		common.WithParamsValue(constant.BEAN_NAME_KEY, c.id),
 	)
+	c.servieMetadata.AddAttachments(cfgURL.GetParams())
 
 	if c.Url != "" {
 		// 1. user specified URL, could be peer-to-peer address, or register center's address.
@@ -149,6 +153,8 @@ func (c *ReferenceConfig) Refer(_ interface{}) {
 			c.invoker = cluster.Join(directory.NewStaticDirectory(invokers))
 		}
 	}
+	_serviceKey := cfgURL.ServiceKey()
+	registryConsumer(_serviceKey, &ConsumerServiceModel{serviceKey: _serviceKey, ReferenceConfig: c})
 
 	// create proxy
 	if c.Async {
@@ -228,4 +234,15 @@ func (c *ReferenceConfig) GenericLoad(id string) {
 	c.Refer(genericService)
 	c.Implement(genericService)
 	return
+}
+
+func (c *ReferenceConfig) initServiceMetadata() {
+	c.servieMetadata = rpc.ServiceMetadata{
+		Version:              c.Version,
+		Group:                c.Group,
+		ServiceInterfaceName: c.InterfaceName,
+		Attachments:          make(map[string][]string),
+		Attributes:           make(map[string]interface{}),
+	}
+	c.servieMetadata.BuildServiceKey()
 }
