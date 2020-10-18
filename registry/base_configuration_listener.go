@@ -42,7 +42,8 @@ func (bcl *BaseConfigurationListener) Configurators() []config_center.Configurat
 }
 
 // InitWith will init BaseConfigurationListener by @key+@Listener+@f
-func (bcl *BaseConfigurationListener) InitWith(key string, listener config_center.ConfigurationListener, f func(url *common.URL) config_center.Configurator) {
+func (bcl *BaseConfigurationListener) InitWith(key string, listener config_center.ConfigurationListener,
+	f func(url *common.URL) config_center.Configurator, enableOverride bool) {
 	bcl.dynamicConfiguration = config.GetEnvInstance().GetDynamicConfiguration()
 	if bcl.dynamicConfiguration == nil {
 		//set configurators to empty
@@ -50,6 +51,9 @@ func (bcl *BaseConfigurationListener) InitWith(key string, listener config_cente
 		return
 	}
 	bcl.defaultConfiguratorFunc = f
+	if !enableOverride {
+		return
+	}
 	bcl.dynamicConfiguration.AddListener(key, listener)
 	if rawConfig, err := bcl.dynamicConfiguration.GetInternalProperty(key, config_center.WithGroup(constant.DUBBO)); err != nil {
 		//set configurators to empty

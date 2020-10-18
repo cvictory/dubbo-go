@@ -138,6 +138,8 @@ const (
 	CONFIG_LOG_DIR_KEY    = "config.logDir"
 	CONFIG_VERSION_KEY    = "configVersion"
 	COMPATIBLE_CONFIG_KEY = "compatible_config"
+
+	CONFIGURATOR_OVERRIDE_ENABLE_KEY = "override.enable"
 )
 const (
 	RegistryConfigPrefix       = "dubbo.registries."

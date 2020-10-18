@@ -254,18 +254,24 @@ func TestExportWithServiceConfig(t *testing.T) {
 	extension.SetDefaultConfigurator(configurator.NewMockConfigurator)
 	ccUrl, _ := common.NewURL("mock://127.0.0.1:1111")
 	dc, _ := (&config_center.MockDynamicConfigurationFactory{}).GetDynamicConfiguration(&ccUrl)
-	common_cfg.GetEnvInstance().SetDynamicConfiguration(dc)
+	mockDc := dc.(*config_center.MockDynamicConfiguration)
+	common_cfg.GetEnvInstance().SetDynamicConfiguration(mockDc)
 	regProtocol := newRegistryProtocol()
 	url := exporterNormal(t, regProtocol)
 	if _, loaded := regProtocol.registries.Load(url.Key()); !loaded {
 		assert.Fail(t, "regProtocol.registries.Load can not be loaded")
 		return
 	}
-	dc.(*config_center.MockDynamicConfiguration).MockServiceConfigEvent()
+	mockDc.MockServiceConfigEvent()
 
 	newUrl := url.SubURL.Clone()
 	newUrl.SetParam(constant.CLUSTER_KEY, "mock1")
 	v2, _ := regProtocol.bounds.Load(getCacheKey(newUrl))
+	if v, ok := regProtocol.serviceConfigurationListeners.Load(newUrl.ServiceKey()); ok {
+		assert.True(t, len(v.(*serviceConfigurationListener).Configurators()) == 1)
+	} else {
+		assert.Fail(t, "cannot get service configurationListener")
+	}
 	assert.NotNil(t, v2)
 }
 
@@ -285,6 +291,8 @@ func TestExportWithApplicationConfig(t *testing.T) {
 	newUrl := url.SubURL.Clone()
 	newUrl.SetParam(constant.CLUSTER_KEY, "mock1")
 	v2, _ := regProtocol.bounds.Load(getCacheKey(newUrl))
+
+	assert.True(t, len(regProtocol.providerConfigurationListener.Configurators()) == 1)
 	assert.NotNil(t, v2)
 }
 

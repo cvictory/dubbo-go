@@ -111,10 +111,10 @@ func filterHideKey(url *common.URL) *common.URL {
 	return url.CloneExceptParams(removeSet)
 }
 
-func (proto *registryProtocol) initConfigurationListeners() {
+func (proto *registryProtocol) initConfigurationListeners(overrideEnable bool) {
 	proto.overrideListeners = &sync.Map{}
 	proto.serviceConfigurationListeners = &sync.Map{}
-	proto.providerConfigurationListener = newProviderConfigurationListener(proto.overrideListeners)
+	proto.providerConfigurationListener = newProviderConfigurationListener(proto.overrideListeners, overrideEnable)
 }
 
 // nolint
@@ -169,12 +169,14 @@ func (proto *registryProtocol) Refer(url common.URL) protocol.Invoker {
 
 // Export provider service to registry center
 func (proto *registryProtocol) Export(invoker protocol.Invoker) protocol.Exporter {
-	proto.once.Do(func() {
-		proto.initConfigurationListeners()
-	})
 	registryUrl := getRegistryUrl(invoker)
 	providerUrl := getProviderUrl(invoker)
 
+	proto.once.Do(func() {
+		// the param of registry url
+		overrideEnable := registryUrl.GetParamBool(constant.CONFIGURATOR_OVERRIDE_ENABLE_KEY, true)
+		proto.initConfigurationListeners(overrideEnable)
+	})
 	overriderUrl := getSubscribedOverrideUrl(providerUrl)
 	// Deprecated! subscribe to override rules in 2.6.x or before.
 	overrideSubscribeListener := newOverrideSubscribeListener(overriderUrl, invoker, proto)
@@ -415,13 +417,14 @@ type providerConfigurationListener struct {
 	overrideListeners *sync.Map
 }
 
-func newProviderConfigurationListener(overrideListeners *sync.Map) *providerConfigurationListener {
+func newProviderConfigurationListener(overrideListeners *sync.Map, overrideEnable bool) *providerConfigurationListener {
 	listener := &providerConfigurationListener{}
 	listener.overrideListeners = overrideListeners
 	listener.InitWith(
 		config.GetProviderConfig().ApplicationConfig.Name+constant.CONFIGURATORS_SUFFIX,
 		listener,
 		extension.GetDefaultConfiguratorFunc(),
+		overrideEnable,
 	)
 	return listener
 }
@@ -443,10 +446,13 @@ type serviceConfigurationListener struct {
 
 func newServiceConfigurationListener(overrideListener *overrideSubscribeListener, providerUrl *common.URL) *serviceConfigurationListener {
 	listener := &serviceConfigurationListener{overrideListener: overrideListener, providerUrl: providerUrl}
+	// the param of registry url
+	overrideEnable := providerUrl.GetParamBool(constant.CONFIGURATOR_OVERRIDE_ENABLE_KEY, true)
 	listener.InitWith(
 		providerUrl.EncodedServiceKey()+constant.CONFIGURATORS_SUFFIX,
 		listener,
 		extension.GetDefaultConfiguratorFunc(),
+		overrideEnable,
 	)
 	return listener
 }

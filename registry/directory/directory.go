@@ -90,7 +90,9 @@ func NewRegistryDirectory(url *common.URL, registry registry.Registry) (cluster.
 		logger.Warnf("fail to create router chain with url: %s, err is: %v", url.SubURL, err)
 	}
 
-	dir.consumerConfigurationListener = newConsumerConfigurationListener(dir)
+	// the param of registry url
+	overrideEnable := url.GetParamBool(constant.CONFIGURATOR_OVERRIDE_ENABLE_KEY, true)
+	dir.consumerConfigurationListener = newConsumerConfigurationListener(dir, overrideEnable)
 
 	go dir.subscribe(url.SubURL)
 	return dir, nil
@@ -395,10 +397,13 @@ type referenceConfigurationListener struct {
 
 func newReferenceConfigurationListener(dir *RegistryDirectory, url *common.URL) *referenceConfigurationListener {
 	listener := &referenceConfigurationListener{directory: dir, url: url}
+	// the param of reference url
+	overrideEnable := url.GetParamBool(constant.CONFIGURATOR_OVERRIDE_ENABLE_KEY, true)
 	listener.InitWith(
 		url.EncodedServiceKey()+constant.CONFIGURATORS_SUFFIX,
 		listener,
 		extension.GetDefaultConfiguratorFunc(),
+		overrideEnable,
 	)
 	return listener
 }
@@ -416,12 +421,13 @@ type consumerConfigurationListener struct {
 	directory *RegistryDirectory
 }
 
-func newConsumerConfigurationListener(dir *RegistryDirectory) *consumerConfigurationListener {
+func newConsumerConfigurationListener(dir *RegistryDirectory, overrideEnable bool) *consumerConfigurationListener {
 	listener := &consumerConfigurationListener{directory: dir}
 	listener.InitWith(
 		config.GetConsumerConfig().ApplicationConfig.Name+constant.CONFIGURATORS_SUFFIX,
 		listener,
 		extension.GetDefaultConfiguratorFunc(),
+		overrideEnable,
 	)
 	return listener
 }

@@ -18,6 +18,7 @@
 package config_center
 
 import (
+	"github.com/apache/dubbo-go/common/logger"
 	"sync"
 )
 
@@ -116,7 +117,6 @@ func (c *MockDynamicConfiguration) RemoveListener(_ string, _ ConfigurationListe
 
 // GetConfig returns content of MockDynamicConfiguration
 func (c *MockDynamicConfiguration) GetConfig(_ string, _ ...Option) (string, error) {
-
 	return c.content, nil
 }
 
@@ -168,8 +168,12 @@ func (c *MockDynamicConfiguration) MockServiceConfigEvent() {
 		},
 	}
 	value, _ := yaml.Marshal(config)
+	c.content = string(value)
 	key := "group*" + mockServiceName + ":1.0.0" + constant.CONFIGURATORS_SUFFIX
-	c.listener[key].Process(&ConfigChangeEvent{Key: key, Value: string(value), ConfigType: remoting.EventTypeAdd})
+	if v, ok := c.listener[key]; ok {
+		logger.Debugf("value:%+v, address:%p", v, v)
+		v.Process(&ConfigChangeEvent{Key: key, Value: string(value), ConfigType: remoting.EventTypeAdd})
+	}
 }
 
 // MockApplicationConfigEvent returns ConfiguratorConfig
@@ -190,6 +194,9 @@ func (c *MockDynamicConfiguration) MockApplicationConfigEvent() {
 		},
 	}
 	value, _ := yaml.Marshal(config)
+	c.content = string(value)
 	key := "test-application" + constant.CONFIGURATORS_SUFFIX
-	c.listener[key].Process(&ConfigChangeEvent{Key: key, Value: string(value), ConfigType: remoting.EventTypeAdd})
+	if v, ok := c.listener[key]; ok {
+		v.Process(&ConfigChangeEvent{Key: key, Value: string(value), ConfigType: remoting.EventTypeAdd})
+	}
 }
