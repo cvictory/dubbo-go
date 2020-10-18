@@ -67,6 +67,7 @@ type RegistryDirectory struct {
 	referenceConfigurationListener *referenceConfigurationListener
 	serviceKey                     string
 	forbidden                      atomic.Bool
+	registerLock                   sync.Mutex // this lock if for register
 }
 
 // NewRegistryDirectory will create a new RegistryDirectory
@@ -74,6 +75,7 @@ func NewRegistryDirectory(url *common.URL, registry registry.Registry) (cluster.
 	if url.SubURL == nil {
 		return nil, perrors.Errorf("url is invalid, suburl can not be nil")
 	}
+	logger.Debugf("new RegistryDirectory for service :%s.", url.Key())
 	dir := &RegistryDirectory{
 		BaseDirectory:    directory.NewBaseDirectory(url),
 		cacheInvokers:    []protocol.Invoker{},
@@ -100,50 +102,87 @@ func NewRegistryDirectory(url *common.URL, registry registry.Registry) (cluster.
 
 // subscribe from registry
 func (dir *RegistryDirectory) subscribe(url *common.URL) {
+	logger.Debugf("subscribe service :%s for RegistryDirectory.", url.Key())
 	dir.consumerConfigurationListener.addNotifyListener(dir)
 	dir.referenceConfigurationListener = newReferenceConfigurationListener(dir, url)
 	dir.registry.Subscribe(url, dir)
 }
 
 // Notify monitor changes from registry,and update the cacheServices
-func (dir *RegistryDirectory) Notify(events ...*registry.ServiceEvent) {
-	go dir.refreshInvokers(events...)
+func (dir *RegistryDirectory) Notify(event *registry.ServiceEvent) {
+	if event == nil {
+		return
+	}
+	go dir.refreshInvokers(event)
 }
 
-// refreshInvokers refreshes service's events. It supports two modes: incremental mode and batch mode. If a single
-// service event is passed in, then it is incremental mode, and if an array of service events are passed in, it is
-// batch mode, in this mode, we assume the registry center have the complete list of the service events, therefore
-// in this case, we can safely assume any cached invoker not in the incoming list can be removed. It is necessary
-// since in batch mode, the register center handles the different type of events by itself, then notify the directory
-// a batch of 'Update' events, instead of omit the different type of event one by one.
-func (dir *RegistryDirectory) refreshInvokers(events ...*registry.ServiceEvent) {
-	var oldInvokers []protocol.Invoker
+// NotifyAll notify the events that are complete Service Event List.
+// After notify the address, the callback func will be invoked.
+func (dir *RegistryDirectory) NotifyAll(events []*registry.ServiceEvent, callback func()) {
+	go dir.refreshAllInvokers(events, callback)
+}
 
-	// in batch mode, it is safe to remove since we have the complete list of events.
-	if len(events) > 1 {
+// refreshInvokers refreshes service's events.
+func (dir *RegistryDirectory) refreshInvokers(event *registry.ServiceEvent) {
+	logger.Debugf("refresh invokers with %+v", event)
+	var oldInvoker protocol.Invoker
+	if event != nil {
+		oldInvoker, _ = dir.cacheInvokerByEvent(event)
+	}
+	dir.setNewInvokers()
+	if oldInvoker != nil {
+		oldInvoker.Destroy()
+	}
+}
+
+// refreshAllInvokers the argument is the complete list of the service events,  we can safely assume any cached invoker
+// not in the incoming list can be removed.  The Action of serviceEvent should be EventTypeUpdate.
+func (dir *RegistryDirectory) refreshAllInvokers(events []*registry.ServiceEvent, callback func()) {
+	var (
+		oldInvokers []protocol.Invoker
+		addEvents   []*registry.ServiceEvent
+	)
+	// loop the events to check the Action should be EventTypeUpdate.
+	for _, event := range events {
+		if event.Action != remoting.EventTypeUpdate {
+			panic("Your implements of register center is wrong, " +
+				"please check the Action of ServiceEvent should be EventTypeUpdate")
+			return
+		}
+	}
+	// After notify all addresses, do some callback.
+	defer callback()
+	func() {
+		// this lock is work at batch update of InvokeCache
+		dir.registerLock.Lock()
+		defer dir.registerLock.Unlock()
+		// get need clear invokers from original invoker list
 		dir.cacheInvokersMap.Range(func(k, v interface{}) bool {
 			if !dir.eventMatched(k.(string), events) {
+				// delete unused invoker from cache
 				if invoker := dir.uncacheInvokerWithKey(k.(string)); invoker != nil {
 					oldInvokers = append(oldInvokers, invoker)
 				}
 			}
 			return true
 		})
-	}
-
-	for _, event := range events {
-		logger.Debugf("registry update, result{%s}", event)
-		if oldInvoker, _ := dir.cacheInvokerByEvent(event); oldInvoker != nil {
-			oldInvokers = append(oldInvokers, oldInvoker)
+		// get need add invokers from events
+		for _, event := range events {
+			// Is the key (url.Key()) of cacheInvokersMap the best way?
+			if _, ok := dir.cacheInvokersMap.Load(event.Service.Key()); !ok {
+				addEvents = append(addEvents, event)
+			}
 		}
-	}
-
-	if len(events) > 0 {
-		dir.setNewInvokers()
-	}
-
-	// After dir.cacheInvokers is updated,destroy the oldInvoker
-	// Ensure that no request will enter the oldInvoker
+		// loop the updateEvents
+		for _, event := range addEvents {
+			logger.Debugf("registry update, result{%s}", event)
+			if oldInvoker, _ := dir.cacheInvokerByEvent(event); oldInvoker != nil {
+				oldInvokers = append(oldInvokers, oldInvoker)
+			}
+		}
+	}()
+	dir.setNewInvokers()
+	// destroy unused invokers
 	for _, invoker := range oldInvokers {
 		invoker.Destroy()
 	}
@@ -298,7 +337,7 @@ func (dir *RegistryDirectory) cacheInvoker(url *common.URL) protocol.Invoker {
 		newUrl := common.MergeUrl(url, referenceUrl)
 		dir.overrideUrl(newUrl)
 		if cacheInvoker, ok := dir.cacheInvokersMap.Load(newUrl.Key()); !ok {
-			logger.Debugf("service will be added in cache invokers: invokers url is  %s!", newUrl)
+			logger.Debugf("service will be added in cache invokers: invokers url is  %+v!", newUrl)
 			newInvoker := extension.GetProtocol(protocolwrapper.FILTER).Refer(*newUrl)
 			if newInvoker != nil {
 				dir.cacheInvokersMap.Store(newUrl.Key(), newInvoker)
@@ -412,7 +451,7 @@ func newReferenceConfigurationListener(dir *RegistryDirectory, url *common.URL) 
 func (l *referenceConfigurationListener) Process(event *config_center.ConfigChangeEvent) {
 	l.BaseConfigurationListener.Process(event)
 	// FIXME: this doesn't trigger dir.overrideUrl()
-	l.directory.refreshInvokers()
+	l.directory.refreshInvokers(nil)
 }
 
 type consumerConfigurationListener struct {
@@ -440,5 +479,5 @@ func (l *consumerConfigurationListener) addNotifyListener(listener registry.Noti
 func (l *consumerConfigurationListener) Process(event *config_center.ConfigChangeEvent) {
 	l.BaseConfigurationListener.Process(event)
 	// FIXME: this doesn't trigger dir.overrideUrl()
-	l.directory.refreshInvokers()
+	l.directory.refreshInvokers(nil)
 }
