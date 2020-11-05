@@ -16,6 +16,12 @@ Apache License, Version 2.0
 
 ## Release note ##
 
+[v1.5.4 - Nov 1, 2020](https://github.com/apache/dubbo-go/releases/tag/v1.5.4)
+
+[v1.5.3 - Sep 23, 2020](https://github.com/apache/dubbo-go/releases/tag/v1.5.3)
+
+[v1.5.2 - discard]()
+
 [v1.5.1 - Aug 23, 2020](https://github.com/apache/dubbo-go/releases/tag/v1.5.1)
 
 [v1.5.0 - July 24, 2020](https://github.com/apache/dubbo-go/releases/tag/v1.5.0)
@@ -144,28 +150,26 @@ https://dubbogo.github.io/dubbo-go-website (**Improving**)
 
 ## Quick Start
 
-[dubbo-samples/golang](https://github.com/dubbogo/dubbo-samples) shows how to use dubbo-go. Please read the [dubbo-samples/golang/README.md](https://github.com/dubbogo/dubbo-samples/blob/master/golang/README.md) carefully to learn how to dispose the configuration and compile the program.
+[dubbo-go-samples](https://github.com/apache/dubbo-go-samples) shows how to use dubbo-go. Please read the [dubbo-samples/golang/README.md](https://github.com/apache/dubbo-go-samples/blob/master/README.md) carefully to learn how to dispose the configuration and compile the program.
 
 ## Running unit tests
 
-### Prepare
-
-Mac/Linux
-```bash
-sh ./before_ut.sh
-```
-
-Windows
-```bash
-before_ut.bat
-```
-
 ### Run
-```bash
-go test ./...
 
-# coverage
-go test ./... -coverprofile=coverage.txt -covermode=atomic
+```bash
+make verify
+```
+
+### Verify license
+
+```bash
+make license
+```
+
+### Run unit test
+
+```bash
+make test
 ```
 
 ## Build

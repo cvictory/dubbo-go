@@ -15,6 +15,14 @@ Apache License, Version 2.0
 
 ## 发布日志 ##
 
+[v1.5.4 - 2020年11月1日](https://github.com/apache/dubbo-go/releases/tag/v1.5.4)
+
+[v1.5.3 - 2020年9月23日](https://github.com/apache/dubbo-go/releases/tag/v1.5.3)
+
+[v1.5.2 - 舍弃]()
+
+[v1.5.1 - 2020年8月23日](https://github.com/apache/dubbo-go/releases/tag/v1.5.1)
+
 [v1.5.0 - 2020年7月24日](https://github.com/apache/dubbo-go/releases/tag/v1.5.0)
 
 [v1.4.0 - 2020年3月17日](https://github.com/apache/dubbo-go/releases/tag/v1.4.0)
@@ -144,29 +152,27 @@ https://dubbogo.github.io/dubbo-go-website (**完善中**)
 
 ## 运行单测
 
-### 准备
+### 执行全部校验
 
-Mac/Linux
 ```bash
-sh ./before_ut.sh
+make verify
 ```
 
-Windows
+### 校验许可证
+
 ```bash
-before_ut.bat
+make license
 ```
 
-### 执行
-```bash
-go test ./...
+### 执行单元测试
 
-# coverage
-go test ./... -coverprofile=coverage.txt -covermode=atomic
+```bash
+make test
 ```
 
 ## 编译
 
-请移步 [dubbo-samples/golang](https://github.com/dubbogo/dubbo-samples)
+请移步 [dubbo-go-samples](https://github.com/apache/dubbo-go-samples)
 
 ## 如何贡献
 
