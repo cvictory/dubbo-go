@@ -42,5 +42,5 @@ type defaultURLComparator struct {
 
 // default comparison implements
 func (defaultURLComparator) CompareURLEqual(l *URL, r *URL, excludeParam ...string) bool {
-	return IsEquals(*l, *r, excludeParam...)
+	return IsEquals(l, r, excludeParam...)
 }

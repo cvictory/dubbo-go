@@ -190,7 +190,7 @@ func (dir *RegistryDirectory) refreshAllInvokers(events []*registry.ServiceEvent
 // eventMatched checks if a cached invoker appears in the incoming invoker list, if no, then it is safe to remove.
 func (dir *RegistryDirectory) eventMatched(key string, events []*registry.ServiceEvent) bool {
 	for _, event := range events {
-		if dir.invokerCacheKey(&event.Service) == key {
+		if dir.invokerCacheKey(event.Service) == key {
 			return true
 		}
 	}
@@ -248,7 +248,7 @@ func (dir *RegistryDirectory) configRouters() {
 
 // convertUrl processes override:// and router://
 func (dir *RegistryDirectory) convertUrl(res *registry.ServiceEvent) *common.URL {
-	ret := &res.Service
+	ret := res.Service
 	if ret.Protocol == constant.OVERRIDE_PROTOCOL || // 1.for override url in 2.6.x
 		ret.GetParam(constant.CATEGORY_KEY, constant.DEFAULT_CATEGORY) == constant.CONFIGURATORS_CATEGORY {
 		dir.configurators = append(dir.configurators, extension.GetDefaultConfigurator(ret))
@@ -336,8 +336,8 @@ func (dir *RegistryDirectory) cacheInvoker(url *common.URL) protocol.Invoker {
 		newUrl := common.MergeUrl(url, referenceUrl)
 		dir.overrideUrl(newUrl)
 		if cacheInvoker, ok := dir.cacheInvokersMap.Load(newUrl.Key()); !ok {
-			logger.Debugf("service will be added in cache invokers: invokers url is  %+v!", newUrl)
-			newInvoker := extension.GetProtocol(protocolwrapper.FILTER).Refer(*newUrl)
+			logger.Debugf("service will be added in cache invokers: invokers url is  %s!", newUrl)
+			newInvoker := extension.GetProtocol(protocolwrapper.FILTER).Refer(newUrl)
 			if newInvoker != nil {
 				dir.cacheInvokersMap.Store(newUrl.Key(), newInvoker)
 			}
@@ -345,12 +345,12 @@ func (dir *RegistryDirectory) cacheInvoker(url *common.URL) protocol.Invoker {
 			// if cached invoker has the same URL with the new URL, then no need to re-refer, and no need to destroy
 			// the old invoker.
 			urlTmp := cacheInvoker.(protocol.Invoker).GetUrl()
-			if common.GetURLComparator().CompareURLEqual(newUrl, &urlTmp) {
+			if common.GetURLComparator().CompareURLEqual(newUrl, urlTmp) {
 				return nil
 			}
 
 			logger.Debugf("service will be updated in cache invokers: new invoker url is %s, old invoker url is %s", newUrl, cacheInvoker.(protocol.Invoker).GetUrl())
-			newInvoker := extension.GetProtocol(protocolwrapper.FILTER).Refer(*newUrl)
+			newInvoker := extension.GetProtocol(protocolwrapper.FILTER).Refer(newUrl)
 			if newInvoker != nil {
 				dir.cacheInvokersMap.Store(newUrl.Key(), newInvoker)
 				return cacheInvoker.(protocol.Invoker)
