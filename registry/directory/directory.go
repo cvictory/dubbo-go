@@ -344,8 +344,7 @@ func (dir *RegistryDirectory) cacheInvoker(url *common.URL) protocol.Invoker {
 		} else {
 			// if cached invoker has the same URL with the new URL, then no need to re-refer, and no need to destroy
 			// the old invoker.
-			urlTmp := cacheInvoker.(protocol.Invoker).GetUrl()
-			if common.GetURLComparator().CompareURLEqual(newUrl, urlTmp) {
+			if common.GetCompareURLEqualFunc()(newUrl, cacheInvoker.(protocol.Invoker).GetUrl()) {
 				return nil
 			}
 
